@@ -226,11 +226,10 @@ const processWithdraw = async () => {
     for (const req of pending) {
       try {
         const amountToPay = parseFloat(req.withdrawedamount);
-        
         if (myBalance < amountToPay) continue;
 
         const [updateRes] = await con.execute(
-          `UPDATE withdrawrequest SET status='processing' WHERE id=? AND status='pending'`,
+          `UPDATE withdrawrequest SET status='processing' WHERE id=? AND status='pending' `,
           [req.id]
         );
         if (updateRes.affectedRows === 0) continue;
@@ -263,13 +262,21 @@ const processWithdraw = async () => {
           { verification_code: code2fa },
           { ...axiosConfig, headers: authHeader }
         );
-        console.log(verifyRes.data)
 
-        if (verifyRes.data.status === "VERIFIED") {
-          await con.execute(`UPDATE withdrawrequest SET status='completed' WHERE id=?`, [req.id]);
+        const statusFromResponse = verifyRes.data.status || "FAILED";
+
+        if (statusFromResponse === "VERIFIED") {
+          await con.execute(
+            `UPDATE withdrawrequest SET status=? WHERE id=?`,
+            [statusFromResponse.toLowerCase(), req.id]
+          );
           myBalance -= amountToPay;
         } else {
-          throw new Error("Verification failed");
+          await con.execute(
+            `UPDATE withdrawrequest SET status='pending' WHERE id=?`,
+            [req.id]
+          );
+          console.error(`Verification failed for withdraw id ${req.id}, status: ${statusFromResponse}`);
         }
 
       } catch (err) {
@@ -284,7 +291,6 @@ const processWithdraw = async () => {
     isProcessing = false;
   }
 };
-
 
 
 
