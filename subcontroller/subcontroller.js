@@ -11,21 +11,16 @@ const { HttpsProxyAgent } = require('https-proxy-agent');
  let speakeasy=require('speakeasy')
 
 
-
-
 const poolDeposit = async () => {
   try {
-
     const [pendingWallets] = await con.execute(
-      'SELECT id, paymentid FROM pending_wallets'
-    )
+      'SELECT paymentid FROM pending_wallets'
+    );
 
-    if (!pendingWallets.length) return
+    if (!pendingWallets.length) return;
 
     for (const w of pendingWallets) {
-
       try {
-
         const response = await axios.get(
           `${process.env.NOWPAYMENTURL}/v1/payment/${w.paymentid}`,
           {
@@ -33,62 +28,63 @@ const poolDeposit = async () => {
               "x-api-key": process.env.NOWPAYAPIKEY
             }
           }
-        )
+        );
 
-        if (!response?.data) continue
+        if (!response?.data) continue;
 
-        const status = response.data.payment_status?.toLowerCase()
+        const status = response.data.payment_status?.toLowerCase();
+        if (status !== 'finished') continue;
 
-
-        if (status !== 'finished') continue
-
-        const userid = response.data.order_id
-        const amount = Number(response.data.actually_paid)
-
+        const userid = response.data.order_id;
+        const amount = Number(response.data.actually_paid);
+        const providerPaymentId = response.data.payment_id;
 
         const [existing] = await con.execute(
           'SELECT id FROM deposits WHERE paymentid=? LIMIT 1',
-          [w.paymentid]
-        )
+          [providerPaymentId]
+        );
 
         if (existing.length) {
           await con.execute(
-            'DELETE FROM pending_wallets WHERE id=?',
-            [w.id]
-          )
-          continue
+            'DELETE FROM pending_wallets WHERE paymentid=?',
+            [providerPaymentId]
+          );
+          continue;
         }
 
-        
+        await con.beginTransaction();
+
         const [result] = await con.execute(
           `INSERT INTO deposits
-          (userid, deposedamount, status, paymentid, credited)
-          VALUES (?,?,?,?,?)`,
-          [userid, amount, status, w.paymentid, 0]
-        )
+           (userid, deposedamount, status, paymentid, credited)
+           VALUES (?,?,?,?,?)`,
+          [userid, amount, status, providerPaymentId, 0]
+        );
 
-        await credituser(userid, amount)
-
-        await con.execute(
-          'UPDATE deposits SET credited=? WHERE id=?',
-          [1, result.insertId]
-        )
+        await credituser(userid, amount, con);
 
         await con.execute(
-          'DELETE FROM pending_wallets WHERE id=?',
-          [w.id]
-        )
+          'UPDATE deposits SET credited=1 WHERE id=?',
+          [result.insertId]
+        );
 
-      } catch (apiErr) {
-        console.error("Payment check error:", apiErr?.response?.data || apiErr.message)
+        await con.execute(
+          'DELETE FROM pending_wallets WHERE paymentid=?',
+          [providerPaymentId]
+        );
+
+        await con.commit();
+
+      } catch (err) {
+        await con.rollback();
+        console.error("Payment processing error:", err.message);
       }
     }
 
   } catch (err) {
-    console.error("Pool deposit fatal error:", err.message)
+    console.error("Pool deposit fatal error:", err.message);
   }
-}
-
+};
 
 
 
