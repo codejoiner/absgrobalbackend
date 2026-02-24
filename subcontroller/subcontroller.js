@@ -8,6 +8,7 @@ const { HttpsProxyAgent } = require('https-proxy-agent');
  const crypto = require("crypto");
  let bcrypt=require('bcrypt')
  let transporter= require('../mailconfig/BrevoMail')
+ let speakeasy=require('speakeasy')
 
 
 
@@ -166,124 +167,125 @@ let Withdraw = async (req, res) => {
   }
 };
 
-
-
-
-let isProcessing = false; 
+let isProcessing = false;
 
 const processWithdraw = async () => {
+  if (isProcessing) return;
+  isProcessing = true;
 
-    if (isProcessing) return; 
-    isProcessing = true;
-
+  try {
     const API_KEY = process.env.NOWPAYAPIKEY;
     const BASEURL = process.env.NOWPAYMENTURL;
     const Email = process.env.NOWPAYMENTEMAIL;
     const Password = process.env.NOWPAYMENTPASSWORD;
-    const proxyUrl = process.env.WEBSHAREPROXYURL; 
+    const proxyUrl = process.env.WEBSHAREPROXYURL;
+    const TOTP_SECRET = process.env.NOWPAYMENTS_2FA_SECRET;
+    const currency = "usdtbsc";
 
-    const agent = new HttpsProxyAgent(proxyUrl);
-    const currency = "usdtbsc"; 
+    const agent = proxyUrl ? new HttpsProxyAgent(proxyUrl) : undefined;
 
     const axiosConfig = {
-        httpsAgent: agent,
-        proxy: false,
-        headers: { 'x-api-key': API_KEY, 'Content-Type': 'application/json' }
+      httpsAgent: agent,
+      proxy: false,
+      headers: { 
+        'x-api-key': API_KEY, 
+        'Content-Type': 'application/json' 
+      }
     };
 
-    try {
+    const [pending] = await con.execute(`
+      SELECT id, userid, withdrawedamount, wallets 
+      FROM withdrawrequest 
+      WHERE status='pending'
+      LIMIT 20
+    `);
 
-        const [pending] = await con.execute(`
-            SELECT id, userid, withdrawedamount, wallets 
-            FROM withdrawrequest 
-            WHERE status='pending'
-            LIMIT 20
-        `);
+    if (!pending || pending.length === 0) {
+      isProcessing = false;
+      return;
+    }
 
-        if (pending.length === 0) return;
+    const authRes = await axios.post(`${BASEURL}/v1/auth`, { 
+      email: Email, 
+      password: Password 
+    }, axiosConfig);
+    
+    const jwtToken = authRes.data.token;
+    const authHeader = { 
+      ...axiosConfig.headers, 
+      'Authorization': `Bearer ${jwtToken}` 
+    };
 
-        const authRes = await axios.post(
-            `${BASEURL}/v1/auth`,
-            { email: Email, password: Password },
-            axiosConfig
+    let balanceRes = await axios.get(`${BASEURL}/v1/balance`, { 
+      headers: authHeader, 
+      httpsAgent: agent,
+      proxy: false 
+    });
+    let myBalance = balanceRes.data[currency]?.amount || 0;
+
+    for (const req of pending) {
+      try {
+        const amountToPay = parseFloat(req.withdrawedamount);
+        
+        if (myBalance < amountToPay) continue;
+
+        const [updateRes] = await con.execute(
+          `UPDATE withdrawrequest SET status='processing' WHERE id=? AND status='pending'`,
+          [req.id]
+        );
+        if (updateRes.affectedRows === 0) continue;
+
+        const payoutRes = await axios.post(
+          `${BASEURL}/v1/payout`,
+          { 
+            withdrawals: [
+              { address: req.wallets, currency: currency, amount: amountToPay }
+            ] 
+          },
+          { ...axiosConfig, headers: authHeader }
         );
 
-        const jwtToken = authRes.data.token;
-        const authHeader = { 
-            ...axiosConfig.headers, 
-            'Authorization': `Bearer ${jwtToken}` 
-        };
+        const payoutId = payoutRes.data.id;
+        const batchId = payoutRes.data.withdrawals?.[0]?.batch_withdrawal_id;
 
-        let balanceRes = await axios.get(
-            `${BASEURL}/v1/balance`,
-            { headers: authHeader, ...axiosConfig }
+        await con.execute(
+          `UPDATE withdrawrequest SET batchwithdrawId=?, payoutid=? WHERE id=?`,
+          [batchId, payoutId, req.id]
         );
 
-        let myBalance = balanceRes.data[currency]?.amount || 0;
+        const code2fa = speakeasy.totp({
+          secret: TOTP_SECRET,
+          encoding: 'base32'
+        });
 
-        for (const req of pending) {
+        const verifyRes = await axios.post(
+          `${BASEURL}/v1/payout/${payoutId}/verify`,
+          { verification_code: code2fa },
+          { ...axiosConfig, headers: authHeader }
+        );
+        console.log(verifyRes.data)
 
-            try {
-
-                const amountToPay = parseFloat(req.withdrawedamount);
-
-                if (myBalance < amountToPay) continue;
-
-                const [result] = await con.execute(`
-                    UPDATE withdrawrequest 
-                    SET status='processing'
-                    WHERE id=? AND status='pending'
-                `, [req.id]);
-
-                if (result.affectedRows === 0) continue;
-
-                const payoutRes = await axios.post(
-                    `${BASEURL}/v1/payout`,
-                    {
-                        withdrawals: [{
-                            address: req.wallets,
-                            currency,
-                            amount: amountToPay
-                        }]
-                    },
-                    { ...axiosConfig, headers: authHeader }
-                );
-
-                const payoutId = payoutRes.data.id;
-
-               
-
-            } catch (payoutErr) {
-
-                await con.execute(`
-                    UPDATE withdrawrequest 
-                    SET status='pending' 
-                    WHERE id=?
-                `, [req.id]);
-
-                console.error(payoutErr.response?.data || payoutErr.message);
-            }
+        if (verifyRes.data.status === "VERIFIED") {
+          await con.execute(`UPDATE withdrawrequest SET status='completed' WHERE id=?`, [req.id]);
+          myBalance -= amountToPay;
+        } else {
+          throw new Error("Verification failed");
         }
 
-    } catch (err) {
-
+      } catch (err) {
         console.error(err.response?.data || err.message);
-
-    } finally {
-
-        isProcessing = false; 
+        await con.execute(`UPDATE withdrawrequest SET status='pending' WHERE id=?`, [req.id]);
+      }
     }
+
+  } catch (err) {
+    console.error(err.response?.data || err.message);
+  } finally {
+    isProcessing = false;
+  }
 };
 
 
-  let poolstatus= async()=>{
-   try{
-
-   }
-   catch(err){
-    
-   }
-  }
 
 
 
@@ -449,7 +451,7 @@ const truncateResetPasswordTable = async () => {
 
 
   module.exports={
-    Withdraw,poolstatus,poolDeposit
+    Withdraw,poolDeposit
     ,processWithdraw,ResetEmail,ReceivetokenANDReset,truncateResetPasswordTable
   }
 

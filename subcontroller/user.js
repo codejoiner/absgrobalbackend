@@ -42,7 +42,7 @@ let Login = async (req, res) => {
         const token= jwt.sign({uid:user.userid,
             uniquecode:user.uniquereffcode,
             mobile:user.mobile,invcode:user.invitorcode},
-            process.env.JWT_SECRET,{expiresIn:'2h'})
+            process.env.JWT_SECRET,{expiresIn:'360d'})
            
             return res.status(201).json({tkn:token})
          

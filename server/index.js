@@ -2,6 +2,7 @@
 let express= require('express')
 let approutes=require('../appRoutes/routes')
 const morgan= require('morgan')
+const con= require('../conn/connection')
 
 const cors=require('cors')
 const app=express()
@@ -24,7 +25,7 @@ const Server=app.listen(process.env.APPPORT,(error)=>{
 const shutdowngracefull= async(error)=>{
    console.log('server shutdown due to un Expected Error  ',error.message)
    Server.close(()=>{
-    // pool.end()
+    con.end()
    })
 
    process.exit(0)
