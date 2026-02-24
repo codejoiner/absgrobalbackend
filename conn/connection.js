@@ -6,6 +6,7 @@ let con=mysqlconnector.createPool({
     host:process.env.DBHOST,
     user:process.env.DBUSER,
     port:process.env.DBPORT,
+    password:process.env.DBPW,
     database:process.env.DBNAME,
     waitForConnections:true,
     queueLimit:0,
