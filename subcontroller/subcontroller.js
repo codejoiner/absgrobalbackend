@@ -339,7 +339,7 @@ const ResetEmail = async (req, res) => {
       [uid, email, hashedToken]
     );
 
-    const resetLink = `http://localhost:5173/reset/${hashedToken}`;
+    const resetLink = `https://absgrobal.online/reset/${hashedToken}`;
     
 
     const emailStatus = await transporter({
