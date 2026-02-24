@@ -12,8 +12,11 @@ const { HttpsProxyAgent } = require('https-proxy-agent');
 
 
 const poolDeposit = async () => {
+  let conn; 
   try {
-    const [pendingWallets] = await con.execute(
+    conn = await con.getConnection();
+
+    const [pendingWallets] = await conn.execute(
       'SELECT paymentid FROM pending_wallets'
     );
 
@@ -39,51 +42,52 @@ const poolDeposit = async () => {
         const amount = Number(response.data.actually_paid);
         const providerPaymentId = response.data.payment_id;
 
-        const [existing] = await con.execute(
+        const [existing] = await conn.execute(
           'SELECT id FROM deposits WHERE paymentid=? LIMIT 1',
           [providerPaymentId]
         );
 
         if (existing.length) {
-          await con.execute(
+          await conn.execute(
             'DELETE FROM pending_wallets WHERE paymentid=?',
             [providerPaymentId]
           );
           continue;
         }
 
-        await con.beginTransaction();
+        await conn.beginTransaction();
 
-        const [result] = await con.execute(
+        const [result] = await conn.execute(
           `INSERT INTO deposits
            (userid, deposedamount, status, paymentid, credited)
            VALUES (?,?,?,?,?)`,
           [userid, amount, status, providerPaymentId, 0]
         );
 
-        await credituser(userid, amount, con);
+        await credituser(userid, amount, conn);
 
-        await con.execute(
+        await conn.execute(
           'UPDATE deposits SET credited=1 WHERE id=?',
           [result.insertId]
         );
 
-        await con.execute(
+        await conn.execute(
           'DELETE FROM pending_wallets WHERE paymentid=?',
           [providerPaymentId]
         );
 
-        await con.commit();
+        await conn.commit();
 
       } catch (err) {
-        await con.rollback();
+        if (conn) await conn.rollback();
         console.error("Payment processing error:", err.message);
       }
     }
 
   } catch (err) {
     console.error("Pool deposit fatal error:", err.message);
-  }
+  } finally {
+    if (conn) conn.release();   }
 };
 
 
