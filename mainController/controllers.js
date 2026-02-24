@@ -343,26 +343,51 @@ let Asset=async(req,res)=>{
 }
 
 
-
-
-let dashinfo= async (req,res)=>{
-  if(!req.user||!req.user.uid) return false
-  let {uid}=req.user
-  try{
-  const [result]=await con.execute(`SELECT u.userid, COALESCE(b.amount, 0.00) AS balance, 
-    COALESCE(SUM(p.totalearned), 0) AS total_earned, COALESCE(SUM(p.price), 0) AS total_price,
-     COUNT(p.id) AS total_projects FROM users u LEFT JOIN userbalance b ON u.userid = b.userid
-     LEFT JOIN projects p ON u.userid = p.userid AND p.status='Running' WHERE u.userid = ? GROUP BY u.userid`,[uid])
-  
-     return res.status(200).json({response:result[0]})
-
-  }
-  catch(e){
-    console.log('error in dashinfo controller ',e.message)
-    return res.status(500).json({message:"something went wrong"})
+const dashinfo = async (req, res) => {
+  if (!req.user || !req.user.uid) {
+    return res.status(401).json({ message: "Unauthorized" });
   }
 
-}
+  const { uid } = req.user;
+
+  try {
+    const [result] = await con.execute(`
+      SELECT 
+        u.userid,
+        COALESCE(b.amount, 0.00) AS balance,
+        COALESCE(p.total_earned, 0) AS total_earned,
+        COALESCE(p.total_price, 0) AS total_price,
+        COALESCE(p.total_projects, 0) AS total_projects
+      FROM users u
+      LEFT JOIN userbalance b 
+        ON u.userid = b.userid
+      LEFT JOIN (
+          SELECT 
+            userid,
+            SUM(totalearned) AS total_earned,
+            SUM(price) AS total_price,
+            COUNT(id) AS total_projects
+          FROM projects
+          WHERE status = 'Running'
+          GROUP BY userid
+      ) p 
+        ON u.userid = p.userid
+      WHERE u.userid = ?
+    `, [uid]);
+
+    return res.status(200).json({
+      success: true,
+      response: result[0] || {}
+    });
+
+  } catch (e) {
+    console.log("Error in dashinfo controller:", e.message);
+    return res.status(500).json({
+      success: false,
+      message: "Something went wrong"
+    });
+  }
+};
 
 let Team= async(req,res)=>{
   if(!req.user||!req.user.uid) return res.status(401).json({message:'unauthorized'}) 
