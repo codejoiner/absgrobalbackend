@@ -166,7 +166,6 @@ let Withdraw = async (req, res) => {
 
   }
 };
-
 let isProcessing = false;
 
 const processWithdraw = async () => {
@@ -221,17 +220,20 @@ const processWithdraw = async () => {
       httpsAgent: agent,
       proxy: false 
     });
-    let myBalance = balanceRes.data[currency]?.amount || 0;
 
+    let myBalance = balanceRes.data[currency]?.amount || 0;
+   console.log(myBalance)
     for (const req of pending) {
       try {
         const amountToPay = parseFloat(req.withdrawedamount);
         if (myBalance < amountToPay) continue;
 
+
         const [updateRes] = await con.execute(
           `UPDATE withdrawrequest SET status='processing' WHERE id=? AND status='pending'`,
           [req.id]
         );
+
         if (updateRes.affectedRows === 0) continue;
 
         const payoutRes = await axios.post(
@@ -266,22 +268,41 @@ const processWithdraw = async () => {
         const statusFromResponse = verifyRes.data.status || "FAILED";
 
         if (statusFromResponse === "VERIFIED") {
-          await con.execute(
-            `UPDATE withdrawrequest SET status=? WHERE id=?`,
-            [statusFromResponse.toLowerCase(), req.id]
+
+          const payoutStatusRes = await axios.get(
+            `${BASEURL}/v1/payout/${payoutId}`,
+            { ...axiosConfig, headers: authHeader }
           );
-          myBalance -= amountToPay;
+
+          const finalStatus = payoutStatusRes.data.status;
+
+          if (finalStatus === "FINISHED") {
+
+            await con.execute(
+              `UPDATE withdrawrequest SET status='finished' WHERE batchwithdrawId=?`,
+              [batchId]
+            );
+
+            myBalance -= amountToPay;
+
+          }
+
         } else {
+
           await con.execute(
             `UPDATE withdrawrequest SET status='pending' WHERE id=?`,
             [req.id]
           );
+
           console.error(`Verification failed for withdraw id ${req.id}, status: ${statusFromResponse}`);
         }
 
       } catch (err) {
         console.error(err.response?.data || err.message);
-        await con.execute(`UPDATE withdrawrequest SET status='pending' WHERE id=?`, [req.id]);
+        await con.execute(
+          `UPDATE withdrawrequest SET status='pending' WHERE id=?`,
+          [req.id]
+        );
       }
     }
 
@@ -291,7 +312,6 @@ const processWithdraw = async () => {
     isProcessing = false;
   }
 };
-
 
 
 
