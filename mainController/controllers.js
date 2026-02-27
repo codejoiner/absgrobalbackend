@@ -413,13 +413,19 @@ let Team= async(req,res)=>{
 
 
 
-cron.schedule('*/1 * * * *',async()=>{
+cron.schedule('0 0 0 * * *',async()=>{
   await dailyEarnTracker()
-  await poolDeposit()
-  await processWithdraw()
   await truncateResetPasswordTable()
 },{
   timezone:"africa/kigali"
+})
+
+cron.schedule('* * * * *',async()=>{
+    await poolDeposit()
+  await processWithdraw()
+},{
+  timezone:"africa/kigali"
+
 })
 
 module.exports={
