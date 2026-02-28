@@ -30,7 +30,9 @@ const poolDeposit = async () => {
         if (!response?.data) continue;
 
         const status = response.data.payment_status?.toLowerCase();
+        console.log(status)
         if (status !== 'finished') continue;
+
 
         const userid = response.data.order_id;
         const amount = Number(response.data.actually_paid);
