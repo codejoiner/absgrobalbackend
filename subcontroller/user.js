@@ -62,10 +62,9 @@ function generateReferralCode() {
 let Register = async (req, res) => {
 
     try {
-        const {email, mobile, password,reffcode } = req.body;
-
+        const {email, mobile, password,reffcode} = req.body;
         if (!email || !mobile || !password) {
-            return res.status(400).json({ message: "Please fill out all fields" });
+        return res.status(400).json({ message: "Please fill out all fields" });
         }
 
        
