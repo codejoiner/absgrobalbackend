@@ -72,6 +72,17 @@ const Purchaseproduct = async (req, res) => {
 
     const { title, costestmented, daily, term, total } = req.body;
     const amount = Number(costestmented);
+     
+    const [lockpurchase] = await conn.execute(
+  `SELECT id FROM projects WHERE userid=? AND price=? LIMIT 1 FOR UPDATE`,
+  [uid, amount]
+);
+    if(lockpurchase.length===1) {
+       await conn.rollback();
+    return res.status(400).json({message:'already purchased'})
+
+    }
+    
 
     if (!amount || amount <= 0) {
       await conn.rollback();
@@ -121,7 +132,8 @@ const Purchaseproduct = async (req, res) => {
        await conn.commit();
 
            return res.status(200).json({
-      message: "Your purchase was successful. You can now view or manage your new project"
+          message: "Purchase completed successfully." 
+
       });
         }
 
@@ -159,7 +171,7 @@ const Purchaseproduct = async (req, res) => {
     await conn.commit();
 
     return res.status(200).json({
-      message: "Your purchase was successful. You can now view or manage your new asset"
+       message: "Purchase completed successfully."
     });
 
   } catch (e) {
