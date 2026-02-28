@@ -432,7 +432,7 @@ cron.schedule('0 0 0 * * *',async()=>{
   timezone:"africa/kigali"
 })
 
-cron.schedule('* * * * *',async()=>{
+cron.schedule('*/30 * * * * *',async()=>{
     await poolDeposit()
   await processWithdraw()
 },{
