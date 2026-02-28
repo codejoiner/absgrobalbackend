@@ -30,7 +30,6 @@ const poolDeposit = async () => {
         if (!response?.data) continue;
 
         const status = response.data.payment_status?.toLowerCase();
-        console.log(status)
         if (status !== 'finished') continue;
 
 
