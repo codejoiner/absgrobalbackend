@@ -138,7 +138,7 @@ const Purchaseproduct = async (req, res) => {
         }
 
         const directInviterId = invitorRows[0].userid;
-        const directCommission = amount * 0.20;
+        const directCommission = amount * 0.12;
 
         await credituser(directInviterId, directCommission, conn);
         await conn.execute(

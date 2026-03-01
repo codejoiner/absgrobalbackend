@@ -164,6 +164,7 @@ const processWithdraw = async () => {
       isProcessing = false;
       return;
     }
+    console.log('running',pending)
 
     const authRes = await axios.post(`${BASEURL}/v1/auth`, {
       email: Email,
