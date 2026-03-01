@@ -88,9 +88,9 @@ let Withdraw = async (req, res) => {
     }
 
     const withdrawedamount = Number(amountalongsidefees);
-    // if (isNaN(withdrawedamount) || withdrawedamount < 1) {
-    //   return res.status(400).json({ message: "Minimum withdraw is 1 USD" });
-    // }
+    if (isNaN(withdrawedamount) || withdrawedamount < 1) {
+      return res.status(400).json({ message: "Minimum withdraw is 1 USD" });
+    }
 
     const addressRegex = /^[a-zA-Z0-9 ]+$/;
     if (!addressRegex.test(withdrawaddress)) {
