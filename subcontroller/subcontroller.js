@@ -188,7 +188,7 @@ const processWithdraw = async () => {
          
         if (myBalance < amountToPay) continue;
          const [updateRes] = await con.execute(
-            `UPDATE withdrawrequest SET status='proccessing' WHERE id=? AND status='pending'`,
+            `UPDATE withdrawrequest SET status='proccessing' WHERE id=?`,
             [req.id]
              );
       
