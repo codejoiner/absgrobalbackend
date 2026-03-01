@@ -157,7 +157,7 @@ const processWithdraw = async () => {
       SELECT id, userid, withdrawedamount, wallets 
       FROM withdrawrequest 
       WHERE status='pending'
-      LIMIT 20
+      LIMIT 10
     `);
 
     if (!pending || pending.length === 0) {
@@ -169,10 +169,10 @@ const processWithdraw = async () => {
       email: Email,
       password: Password
     }, axiosConfig);
- 
     
     const jwtToken = authRes.data.token;
     const authHeader = { ...axiosConfig.headers, 'Authorization': `Bearer ${jwtToken}` };
+
     let balanceRes = await axios.get(`${BASEURL}/v1/balance`, {
       headers: authHeader,
       httpsAgent: agent,
@@ -185,19 +185,19 @@ const processWithdraw = async () => {
     for (const req of pending) {
       try {
         const amountToPay = parseFloat(req.withdrawedamount);
-         
         if (myBalance < amountToPay) continue;
-         const [updateRes] = await con.execute(
-            `UPDATE withdrawrequest SET status='proccessing' WHERE id=?`,
-            [req.id]
-             );
+
+        const [updateRes] = await con.execute(
+          `UPDATE withdrawrequest SET status='proccessing' WHERE id=? AND status='pending'`,
+          [req.id]
+        );
       
         if (updateRes.affectedRows === 0) continue;
 
         const payoutRes = await axios.post(
           `${BASEURL}/v1/payout`,
           { withdrawals: [{ address: req.wallets, currency, amount: amountToPay }] },
-          { ...axiosConfig, headers: authHeader, timeout: 20000 }
+          { ...axiosConfig, headers: authHeader }
         );
 
         const payoutId = payoutRes.data.id;
@@ -213,33 +213,22 @@ const processWithdraw = async () => {
         const verifyRes = await axios.post(
           `${BASEURL}/v1/payout/${payoutId}/verify`,
           { verification_code: code2fa },
-          { ...axiosConfig, headers: authHeader, timeout: 20000 }
+          { ...axiosConfig, headers: authHeader }
         );
-
-        const statusFromResponse = verifyRes.data.status || "FAILED";
-        if (statusFromResponse === "VERIFIED") {
-          const payoutStatusRes = await axios.get(
-            `${BASEURL}/v1/payout/${payoutId}`,
-            { ...axiosConfig, headers: authHeader, timeout: 20000 }
-          );
-
-          const finalStatus = payoutStatusRes.data.status;
-        console.log(statusFromResponse,finalStatus)
-
-          if (finalStatus === "FINISHED") {
+        console.log(verifyRes.data.status)
+        if (verifyRes.data.status === "VERIFIED" || verifyRes.data.status === "FINISHED") {
             await con.execute(
-              `UPDATE withdrawrequest SET status='finished' WHERE batchwithdrawId=?`,
-              [batchId]
+              `UPDATE withdrawrequest SET status='finished' WHERE id=?`,
+              [req.id]
             );
             myBalance -= amountToPay;
-          }
         } else {
-          await con.execute(`UPDATE withdrawrequest SET status='pending' WHERE id=?`, [req.id]);
+          await con.execute(`UPDATE withdrawrequest SET status='failed' WHERE id=?`, [req.id]);
         }
 
       } catch (err) {
         console.error(err.response?.data || err.message);
-        await con.execute(`UPDATE withdrawrequest SET status='pending' WHERE id=?`, [req.id]);
+        await con.execute(`UPDATE withdrawrequest SET status='failed' WHERE id=?`, [req.id]);
       }
     }
 
@@ -249,7 +238,6 @@ const processWithdraw = async () => {
     isProcessing = false;
   }
 };
-
 const ResetEmail = async (req, res) => {
   const { email } = req.body;
 
