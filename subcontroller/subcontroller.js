@@ -186,12 +186,13 @@ const processWithdraw = async () => {
     for (const req of pending) {
       try {
         const amountToPay = parseFloat(req.withdrawedamount);
+         
         if (myBalance < amountToPay) continue;
-
-        const [updateRes] = await con.execute(
-          `UPDATE withdrawrequest SET status='processing' WHERE id=?`,
-          [req.id]
-        );
+         const [updateRes] = await con.execute(
+            `UPDATE withdrawrequest SET status='proccessing' WHERE id=? AND status='pending'`,
+            [req.id]
+             );
+      
         if (updateRes.affectedRows === 0) continue;
 
         const payoutRes = await axios.post(

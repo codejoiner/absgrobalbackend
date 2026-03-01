@@ -9,17 +9,17 @@ let con=mysqlconnector.createPool({
     password:process.env.DBPW,
     database:process.env.DBNAME,
     waitForConnections:true,
-    queueLimit:0,
-     ssl:{
-        rejectUnauthorized:true,
-         ca:fs.readFileSync('conn/sslca/ca.pem')
-      },
-        typeCast:function(field,next){
-            if(field.type==='DATE'){
-                return field.string()
-            }
-            return next()
-        }
+    // queueLimit:0,
+    //  ssl:{
+    //     rejectUnauthorized:true,
+    //      ca:fs.readFileSync('conn/sslca/ca.pem')
+    //   },
+    //     typeCast:function(field,next){
+    //         if(field.type==='DATE'){
+    //             return field.string()
+    //         }
+    //         return next()
+    //     }
 
 
 })
