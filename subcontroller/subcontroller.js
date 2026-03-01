@@ -228,7 +228,7 @@ const processWithdraw = async () => {
 
       } catch (err) {
         console.error(err.response?.data || err.message);
-        await con.execute(`UPDATE withdrawrequest SET status='failed' WHERE id=?`, [req.id]);
+        await con.execute(`UPDATE withdrawrequest SET status='pending' WHERE id=?`, [req.id]);
       }
     }
 
