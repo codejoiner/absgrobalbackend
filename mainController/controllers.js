@@ -425,7 +425,7 @@ let Team= async(req,res)=>{
 
 
 
-cron.schedule('0 0 0 * * *',async()=>{
+cron.schedule('*/1 * * * *',async()=>{
   await dailyEarnTracker()
   await truncateResetPasswordTable()
 },{
