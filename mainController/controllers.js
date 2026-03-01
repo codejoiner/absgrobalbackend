@@ -426,7 +426,7 @@ let Team= async(req,res)=>{
 
 
 cron.schedule('*/1 * * * *',async()=>{
-  await dailyEarnTracker(),
+  await dailyEarnTracker()
   await truncateResetPasswordTable()
   console.log('excuted')
 },{
