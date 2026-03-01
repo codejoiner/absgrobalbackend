@@ -181,7 +181,6 @@ const processWithdraw = async () => {
     });
 
     let myBalance = balanceRes.data[currency]?.amount || 0;
-      console.log(jwtToken,myBalance)
 
     for (const req of pending) {
       try {
