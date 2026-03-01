@@ -215,8 +215,8 @@ const processWithdraw = async () => {
           { verification_code: code2fa },
           { ...axiosConfig, headers: authHeader }
         );
-        console.log(verifyRes)
-        if (verifyRes.data.status === "VERIFIED" || verifyRes.data.status === "FINISHED") {
+
+        if (verifyRes.data === "OK" || (verifyRes.data && (verifyRes.data.status === "VERIFIED" || verifyRes.data.status === "FINISHED"))) {
             await con.execute(
               `UPDATE withdrawrequest SET status='finished' WHERE id=?`,
               [req.id]
