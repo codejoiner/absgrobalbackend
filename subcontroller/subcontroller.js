@@ -87,7 +87,7 @@ let Withdraw = async (req, res) => {
       return res.status(400).json({ message: "Fill out all fields" });
     }
 
-    // const withdrawedamount = Number(amountalongsidefees);
+    const withdrawedamount = Number(amountalongsidefees);
     // if (isNaN(withdrawedamount) || withdrawedamount < 1) {
     //   return res.status(400).json({ message: "Minimum withdraw is 1 USD" });
     // }
