@@ -217,7 +217,6 @@ const processWithdraw = async () => {
         );
 
         const statusFromResponse = verifyRes.data.status || "FAILED";
-
         if (statusFromResponse === "VERIFIED") {
           const payoutStatusRes = await axios.get(
             `${BASEURL}/v1/payout/${payoutId}`,
@@ -225,6 +224,8 @@ const processWithdraw = async () => {
           );
 
           const finalStatus = payoutStatusRes.data.status;
+        console.log(statusFromResponse,finalStatus)
+
           if (finalStatus === "FINISHED") {
             await con.execute(
               `UPDATE withdrawrequest SET status='finished' WHERE batchwithdrawId=?`,
