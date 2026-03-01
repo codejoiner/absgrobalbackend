@@ -164,16 +164,15 @@ const processWithdraw = async () => {
       isProcessing = false;
       return;
     }
-    console.log('running',pending)
 
     const authRes = await axios.post(`${BASEURL}/v1/auth`, {
       email: Email,
       password: Password
     }, axiosConfig);
-
+ 
+    
     const jwtToken = authRes.data.token;
     const authHeader = { ...axiosConfig.headers, 'Authorization': `Bearer ${jwtToken}` };
-
     let balanceRes = await axios.get(`${BASEURL}/v1/balance`, {
       headers: authHeader,
       httpsAgent: agent,
@@ -182,6 +181,8 @@ const processWithdraw = async () => {
     });
 
     let myBalance = balanceRes.data[currency]?.amount || 0;
+      console.log(jwtToken,myBalance)
+
     for (const req of pending) {
       try {
         const amountToPay = parseFloat(req.withdrawedamount);
